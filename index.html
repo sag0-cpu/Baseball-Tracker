@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Pitcher Analytics Tool</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 20px;
+      background-color: #f4f4f4;
+    }
+
+    h1 {
+      color: #333;
+    }
+
+    form label {
+      display: block;
+      margin-bottom: 10px;
+    }
+
+    input {
+      padding: 5px;
+      width: 100px;
+      margin-left: 10px;
+    }
+
+    button {
+      margin-top: 10px;
+      padding: 8px 15px;
+      font-weight: bold;
+    }
+
+    #output {
+      margin-top: 30px;
+      padding: 15px;
+      background: #fff;
+      border: 1px solid #ccc;
+    }
+
+    ul {
+      list-style: none;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>Pitcher Analytics Comparison Tool</h1>
+
+  <form id="player-form">
+    <label>FIP: <input type="number" id="fip" step="0.01" required></label>
+    <label>ERA+: <input type="number" id="eraPlus" step="1" required></label>
+    <label>WHIP: <input type="number" id="whip" step="0.01" required></label>
+    <label>IP: <input type="number" id="ip" step="1" required></label>
+    <label>SO/W: <input type="number" id="so_w" step="0.1" required></label>
+    <button type="submit">Compare</button>
+  </form>
+
+  <div id="output"></div>
+
+  <script>
+    function toPercentile(value, arr, reverse = false) {
+      const sorted = [...arr].sort((a, b) => reverse ? b - a : a - b);
+      const rank = sorted.findIndex(v => value <= v);
+      return ((sorted.length - rank) / sorted.length * 100).toFixed(2);
+    }
+
+    async function loadCSV() {
+      const res = await fetch('data/pitchers.csv');
+      const text = await res.text();
+      const lines = text.trim().split('\n').slice(1); // skip header
+      return lines.map(line => {
+        const [Name, FIP, ERAplus, WHIP, IP, SOW] = line.split(',');
+        return {
+          Name,
+          FIP: parseFloat(FIP),
+          ERAplus: parseFloat(ERAplus),
+          WHIP: parseFloat(WHIP),
+          IP: parseFloat(IP),
+          SOW: parseFloat(SOW)
+        };
+      });
+    }
+
+    document.getElementById('player-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const fip = parseFloat(document.getElementById('fip').value);
+      const eraPlus = parseFloat(document.getElementById('eraPlus').value);
+      const whip = parseFloat(document.getElementById('whip').value);
+      const ip = parseFloat(document.getElementById('ip').value);
+      const so_w = parseFloat(document.getElementById('so_w').value);
+
+      const data = await loadCSV();
+
+      const percentiles = {
+        FIP: toPercentile(fip, data.map(p => p.FIP), true),
+        ERAplus: toPercentile(eraPlus, data.map(p => p.ERAplus)),
+        WHIP: toPercentile(whip, data.map(p => p.WHIP), true),
+        IP: toPercentile(ip, data.map(p => p.IP)),
+        SOW: toPercentile(so_w, data.map(p => p.SOW))
+      };
+
+      document.getElementById('output').innerHTML = `
+        <p><strong>Percentile Rankings:</strong></p>
+        <ul>
+          <li>FIP: ${percentiles.FIP}%</li>
+          <li>ERA+: ${percentiles.ERAplus}%</li>
+          <li>WHIP: ${percentiles.WHIP}%</li>
+          <li>Innings Pitched (IP): ${percentiles.IP}%</li>
+          <li>Strikeouts/Walks (SO/W): ${percentiles.SOW}%</li>
+        </ul>
+      `;
+    });
+  </script>
+</body>
+</html>

@@ -48,11 +48,9 @@
   <h1>Pitcher Analytics Comparison Tool</h1>
 
   <form id="player-form">
-    <label>FIP: <input type="number" id="fip" step="0.01" required></label>
-    <label>ERA+: <input type="number" id="eraPlus" step="1" required></label>
-    <label>WHIP: <input type="number" id="whip" step="0.01" required></label>
+    <label>BB: <input type="number" id="bb" step="1" required></label>
+    <label>SO: <input type="number" id="so" step="1" required></label>
     <label>IP: <input type="number" id="ip" step="1" required></label>
-    <label>SO/W: <input type="number" id="so_w" step="0.1" required></label>
     <button type="submit">Compare</button>
   </form>
 
@@ -65,19 +63,22 @@
       return ((sorted.length - rank) / sorted.length * 100).toFixed(2);
     }
 
+    // Load CSV data from the repository
     async function loadCSV() {
       const res = await fetch('data/pitchers.csv');
       const text = await res.text();
-      const lines = text.trim().split('\n').slice(1); // skip header
+      const lines = text.trim().split('\n').slice(1); // Skip header row
+
+      // Parse CSV into objects
       return lines.map(line => {
-        const [Name, FIP, ERAplus, WHIP, IP, SOW] = line.split(',');
+        const [Rk, Name, Age, Tm, Lg, G, PA, AB, R, H, _2B, _3B, HR, RBI, SB, CS, BB, SO, BA, OBP, SLG, OPS, OPSplus, TB, GDP, HBP, SH, SF, IBB] = line.split(',');
+        
+        // Convert the relevant fields into numbers
         return {
           Name,
-          FIP: parseFloat(FIP),
-          ERAplus: parseFloat(ERAplus),
-          WHIP: parseFloat(WHIP),
-          IP: parseFloat(IP),
-          SOW: parseFloat(SOW)
+          BB: parseInt(BB),  // Walks
+          SO: parseInt(SO),  // Strikeouts
+          IP: parseInt(G),   // Assuming "G" represents games pitched (this could be adjusted if you have actual IP data)
         };
       });
     }
@@ -85,30 +86,32 @@
     document.getElementById('player-form').addEventListener('submit', async (e) => {
       e.preventDefault();
 
-      const fip = parseFloat(document.getElementById('fip').value);
-      const eraPlus = parseFloat(document.getElementById('eraPlus').value);
-      const whip = parseFloat(document.getElementById('whip').value);
-      const ip = parseFloat(document.getElementById('ip').value);
-      const so_w = parseFloat(document.getElementById('so_w').value);
+      // Collect user input for comparison
+      const bb = parseInt(document.getElementById('bb').value);
+      const so = parseInt(document.getElementById('so').value);
+      const ip = parseInt(document.getElementById('ip').value);
 
       const data = await loadCSV();
 
+      // Calculate SO/W ratio
+      const so_w = so / bb;
+
+      // Calculate percentiles
       const percentiles = {
-        FIP: toPercentile(fip, data.map(p => p.FIP), true),
-        ERAplus: toPercentile(eraPlus, data.map(p => p.ERAplus)),
-        WHIP: toPercentile(whip, data.map(p => p.WHIP), true),
-        IP: toPercentile(ip, data.map(p => p.IP)),
-        SOW: toPercentile(so_w, data.map(p => p.SOW))
+        SO_W: toPercentile(so_w, data.map(p => p.SO / p.BB)),  // Compare SO/W
+        BB: toPercentile(bb, data.map(p => p.BB)),             // Compare BB
+        SO: toPercentile(so, data.map(p => p.SO)),             // Compare SO
+        IP: toPercentile(ip, data.map(p => p.IP))              // Compare IP
       };
 
+      // Output results to the page
       document.getElementById('output').innerHTML = `
         <p><strong>Percentile Rankings:</strong></p>
         <ul>
-          <li>FIP: ${percentiles.FIP}%</li>
-          <li>ERA+: ${percentiles.ERAplus}%</li>
-          <li>WHIP: ${percentiles.WHIP}%</li>
+          <li>Strikeouts/Walks (SO/W): ${percentiles.SO_W}%</li>
+          <li>Walks (BB): ${percentiles.BB}%</li>
+          <li>Strikeouts (SO): ${percentiles.SO}%</li>
           <li>Innings Pitched (IP): ${percentiles.IP}%</li>
-          <li>Strikeouts/Walks (SO/W): ${percentiles.SOW}%</li>
         </ul>
       `;
     });
